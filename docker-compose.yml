@@ -1,15 +1,44 @@
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: queueflux
+      POSTGRES_USER: queueflux
+      POSTGRES_PASSWORD: queueflux-dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - queueflux-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queueflux -d queueflux"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   api:
     build:
       context: .
       dockerfile: backend/server/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/queueflux
+      DB_USERNAME: queueflux
+      DB_PASSWORD: queueflux-dev
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
     ports:
       - "8080:8080"
-    environment:
-      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   web:
     build: ./web
     ports:
       - "3000:80"
     depends_on:
       - api
+    restart: unless-stopped
+
+volumes:
+  queueflux-postgres:

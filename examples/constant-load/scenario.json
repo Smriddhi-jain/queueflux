@@ -4,14 +4,81 @@
   "durationMicros": 60000000,
   "seed": 12345,
   "queues": [
-    {"id": "email-queue", "maxDepth": 5000, "discipline": "FIFO"}
+    {
+      "id": "email-queue",
+      "maxDepth": 5000,
+      "discipline": "FIFO",
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "initialBackoffMicros": 100000,
+        "maxBackoffMicros": 2000000,
+        "multiplier": 2.0,
+        "jitterFraction": 0.15
+      },
+      "rateLimit": {
+        "ratePerSecond": 50,
+        "burstCapacity": 10
+      }
+    },
+    {
+      "id": "report-queue",
+      "maxDepth": 1000,
+      "discipline": "PRIORITY",
+      "rateLimit": {
+        "ratePerSecond": 0,
+        "burstCapacity": 1
+      }
+    }
   ],
   "workerPools": [
-    {"id": "email-workers", "queueId": "email-queue", "workerCount": 5, "concurrencyPerWorker": 1,
-     "serviceTime": {"distribution": "EXPONENTIAL", "constantMicros": 250000, "meanMicros": 250000}}
+    {
+      "id": "email-workers",
+      "queueId": "email-queue",
+      "workerCount": 5,
+      "concurrencyPerWorker": 1,
+      "serviceTime": {
+        "distribution": "EXPONENTIAL",
+        "constantMicros": 250000,
+        "meanMicros": 250000
+      },
+      "failureProbability": 0.02,
+      "outages": [
+        {
+          "id": "maintenance-window",
+          "startMicros": 30000000,
+          "endMicros": 33000000,
+          "unavailableWorkers": 2
+        }
+      ]
+    },
+    {
+      "id": "report-workers",
+      "queueId": "report-queue",
+      "workerCount": 2,
+      "concurrencyPerWorker": 1,
+      "serviceTime": {
+        "distribution": "CONSTANT",
+        "constantMicros": 500000,
+        "meanMicros": 500000
+      }
+    }
   ],
   "workloads": [
-    {"id": "email-arrivals", "queueId": "email-queue", "startMicros": 0, "endMicros": 60000000,
-     "arrivals": {"mode": "POISSON", "ratePerSecond": 20}}
+    {
+      "id": "email-arrivals",
+      "queueId": "email-queue",
+      "startMicros": 0,
+      "endMicros": 60000000,
+      "priority": 0,
+      "arrivals": { "mode": "POISSON", "ratePerSecond": 20 }
+    },
+    {
+      "id": "urgent-reports",
+      "queueId": "report-queue",
+      "startMicros": 0,
+      "endMicros": 60000000,
+      "priority": 10,
+      "arrivals": { "mode": "CONSTANT", "ratePerSecond": 2 }
+    }
   ]
 }

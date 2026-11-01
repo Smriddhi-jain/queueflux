@@ -1,6 +1,7 @@
 package io.queueflux.engine.scheduler;
 
-public record ScheduledEvent(long timeMicros, long sequence, EventType type, String jobId, String queueId) implements Comparable<ScheduledEvent> {
+public record ScheduledEvent(long timeMicros, long sequence, EventType type,
+                             String jobId, String queueId, String outageId) implements Comparable<ScheduledEvent> {
     @Override
     public int compareTo(ScheduledEvent other) {
         int byTime = Long.compare(timeMicros, other.timeMicros);

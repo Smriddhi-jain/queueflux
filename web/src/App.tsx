@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Activity, ArrowUpRight, Clock3, Gauge, Play, RotateCcw, Server, Zap } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -17,6 +17,10 @@ export default function App() {
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [scenarioJson, setScenarioJson] = useState(() => JSON.stringify(initial, null, 2));
+  const [jsonError, setJsonError] = useState('');
+  const [progress, setProgress] = useState('');
+  useEffect(() => setScenarioJson(JSON.stringify(scenario, null, 2)), [scenario]);
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
   const chartData = useMemo(() => {
     if (!result) return [];
@@ -38,16 +42,46 @@ export default function App() {
     setScenario(current => ({ ...current, workloads: [{ ...current.workloads[0], arrivals: { ...current.workloads[0].arrivals, ...patch } }] }));
   }
   async function runSimulation() {
-    setLoading(true); setError(''); setResult(null);
+    setLoading(true); setError(''); setProgress('Submitting durable simulation run…'); setResult(null);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/simulations/run`, {
+      const response = await fetch(`${apiUrl}/api/v1/simulations/runs`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scenario)
       });
-      if (!response.ok) throw new Error((await response.json()).message ?? `Simulation failed (${response.status})`);
-      setResult(await response.json() as Result);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message ?? `Simulation submission failed (${response.status})`);
+      }
+      const accepted = await response.json() as { id: string };
+      while (true) {
+        await new Promise(resolve => window.setTimeout(resolve, 500));
+        const statusResponse = await fetch(`${apiUrl}/api/v1/simulations/runs/${accepted.id}`);
+        if (!statusResponse.ok) throw new Error(`Could not read simulation status (${statusResponse.status})`);
+        const run = await statusResponse.json() as import('./types').RunSnapshot;
+        setProgress(`${run.status} · ${fmt(run.processedEvents)} events · virtual time ${fmt(run.virtualTimeMicros/1_000_000)}s`);
+        if (run.status === 'COMPLETED') {
+          if (!run.result) throw new Error('Run completed without a result payload.');
+          setResult(run.result);
+          break;
+        }
+        if (run.status === 'FAILED') throw new Error(run.errorMessage ?? 'Simulation failed.');
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not reach the QueueFlux API.');
     } finally { setLoading(false); }
+  }
+
+  function applyScenarioJson() {
+    try {
+      const parsed = JSON.parse(scenarioJson) as Scenario;
+      if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.queues) || !Array.isArray(parsed.workerPools) || !Array.isArray(parsed.workloads)) {
+        throw new Error('Expected scenario schemaVersion 1 with queues, workerPools and workloads arrays.');
+      }
+      setScenario(parsed);
+      setJsonError('');
+      setResult(null);
+    } catch (reason) {
+      setJsonError(reason instanceof Error ? reason.message : 'Invalid JSON scenario.');
+    }
   }
 
   return <main className="shell">
@@ -58,8 +92,10 @@ export default function App() {
       <div className="field-grid"><label className="field-label">ARRIVAL RATE <span>jobs / sec</span><input type="number" min="0.1" step="0.5" value={scenario.workloads[0].arrivals.ratePerSecond} onChange={e=>updateWorkload({ratePerSecond:Math.max(0.1,Number(e.target.value))})}/></label><label className="field-label">WORKERS<input type="number" min="1" max="500" value={scenario.workerPools[0].workerCount} onChange={e=>updatePool({workerCount:Math.max(1,Math.min(500,Number(e.target.value)))})}/></label></div>
       <div className="field-grid"><label className="field-label">CONCURRENCY / WORKER<input type="number" min="1" max="100" value={scenario.workerPools[0].concurrencyPerWorker} onChange={e=>updatePool({concurrencyPerWorker:Math.max(1,Math.min(100,Number(e.target.value)))})}/></label><label className="field-label">MEAN SERVICE TIME <span>ms</span><input type="number" min="1" value={scenario.workerPools[0].serviceTime.meanMicros/1000} onChange={e=>updatePool({serviceTime:{distribution:'EXPONENTIAL',constantMicros:Math.max(1,Number(e.target.value))*1000,meanMicros:Math.max(1,Number(e.target.value))*1000}})}/></label></div>
       <div className="field-grid"><label className="field-label">DURATION <span>seconds</span><input type="number" min="1" max="3600" value={scenario.durationMicros/1_000_000} onChange={e=>{const duration=Math.max(1,Number(e.target.value))*1_000_000;setScenario(current=>({...current,durationMicros:duration,workloads:current.workloads.map(workload=>({...workload,endMicros:duration}))}));}}/></label><label className="field-label">RANDOM SEED<input type="number" value={scenario.seed} onChange={e=>setScenario({...scenario,seed:Number(e.target.value)})}/></label></div>
+      <details className="advanced-editor"><summary>ADVANCED SCENARIO JSON <span>queues · retries · limiter · outages</span></summary><textarea spellCheck={false} value={scenarioJson} onChange={e=>setScenarioJson(e.target.value)} aria-label="Advanced scenario JSON"/><button className="apply-json" onClick={applyScenarioJson}>APPLY JSON SCENARIO</button>{jsonError && <div className="error-box">{jsonError}</div>}</details>
       <div className="config-note"><div className="note-icon"><Clock3 size={15}/></div><p><strong>Deterministic run</strong><br/>The same inputs and seed produce the same logical result.</p></div>
       <button className="run-button" onClick={runSimulation} disabled={loading}>{loading ? <><span className="spinner"/> RUNNING EXPERIMENT</> : <><Play size={16} fill="currentColor"/> RUN SIMULATION <ArrowUpRight size={16}/></>}</button>
+      {progress && <div className="progress-message">{progress}</div>}
       {error && <div className="error-box">{error}</div>}
       <div className="engine-foot"><span>ENGINE</span><strong>Discrete-event / virtual clock</strong><span className="engine-status">● READY</span></div>
     </section>
@@ -72,7 +108,7 @@ export default function App() {
           <Metric icon={<Activity size={16}/>} label="WORKER UTILIZATION" value={`${fmt(result.workerUtilization*100)}%`} unit="of available capacity"/>
         </div>
         <div className="panel chart-panel"><div className="chart-head"><div><h3>Event activity</h3><p>Captured events across virtual time</p></div><span className="chart-legend"><i/> completions</span></div><div className="chart-wrap">{chartData.length > 0 ? <ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><defs><linearGradient id="completeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#64e5bf" stopOpacity={0.28}/><stop offset="100%" stopColor="#64e5bf" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#202b42" strokeDasharray="3 5" vertical={false}/><XAxis dataKey="time" stroke="#66738c" tickLine={false} axisLine={false} tickFormatter={v=>`${v}s`}/><YAxis stroke="#66738c" tickLine={false} axisLine={false} width={34}/><Tooltip contentStyle={{background:'#111a2b',border:'1px solid #293753',borderRadius:10,color:'#eaf0ff'}}/><Area type="monotone" dataKey="completed" name="Completions" stroke="#64e5bf" fill="url(#completeFill)" strokeWidth={2.2}/></AreaChart></ResponsiveContainer> : <div className="no-trace">Trace capture disabled or no events recorded.</div>}</div></div>
-        <div className="panel summary-panel"><div className="chart-head"><div><h3>Execution summary</h3><p>Seed {result.seed} · {fmt(result.processedEvents)} events processed</p></div></div><div className="summary-grid"><Summary label="Generated" value={result.generatedJobs}/><Summary label="Completed" value={result.completedJobs}/><Summary label="Rejected" value={result.rejectedJobs}/><Summary label="Waiting at end" value={result.waitingAtEnd}/><Summary label="Active at end" value={result.activeAtEnd}/><Summary label="p99 latency" value={`${fmt(result.p99EndToEndLatencyMicros/1000)} ms`}/></div></div>
+        <div className="panel summary-panel"><div className="chart-head"><div><h3>Execution summary</h3><p>Seed {result.seed} · {fmt(result.processedEvents)} events processed</p></div></div><div className="summary-grid"><Summary label="Generated" value={result.generatedJobs}/><Summary label="Completed" value={result.completedJobs}/><Summary label="Rejected" value={result.rejectedJobs}/><Summary label="Waiting at end" value={result.waitingAtEnd}/><Summary label="Active at end" value={result.activeAtEnd}/><Summary label="p99 latency" value={`${fmt(result.p99EndToEndLatencyMicros/1000)} ms`}/><Summary label="Retries scheduled" value={result.retriedJobs}/><Summary label="Dead-lettered" value={result.deadLetteredJobs}/></div></div>
       </>}
     </section></div>
     <footer><span>QUEUEFLUX <i>·</i> OPEN SOURCE WORKLOAD EXPERIMENTS</span><span>BUILT FOR REPEATABILITY <i>·</i> APACHE 2.0</span></footer>

@@ -1,0 +1,95 @@
+package io.queueflux.server.persistence;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.queueflux.engine.api.SimulationProgress;
+import io.queueflux.engine.api.SimulationResult;
+import io.queueflux.model.scenario.ScenarioDefinition;
+import io.queueflux.server.api.SimulationRunSnapshot;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class SimulationRunRepository {
+    private final JdbcTemplate jdbc;
+    private final ObjectMapper mapper;
+
+    public SimulationRunRepository(JdbcTemplate jdbc, ObjectMapper mapper) {
+        this.jdbc = jdbc;
+        this.mapper = mapper;
+    }
+
+    public void create(UUID id, ScenarioDefinition scenario) {
+        jdbc.update("""
+                INSERT INTO simulation_runs
+                (id, status, scenario_name, seed, submitted_at, scenario_json, virtual_time_micros, processed_events)
+                VALUES (?, 'QUEUED', ?, ?, ?, CAST(? AS JSONB), 0, 0)
+                """, id, scenario.name(), scenario.seed(), Timestamp.from(Instant.now()), toJson(scenario));
+    }
+
+    public void markRunning(UUID id) {
+        jdbc.update("UPDATE simulation_runs SET status='RUNNING' WHERE id=? AND status='QUEUED'", id);
+    }
+
+    public void updateProgress(UUID id, SimulationProgress progress) {
+        jdbc.update("""
+                UPDATE simulation_runs SET virtual_time_micros=?, processed_events=?
+                WHERE id=? AND status='RUNNING'
+                """, progress.virtualTimeMicros(), progress.processedEvents(), id);
+    }
+
+    public void markCompleted(UUID id, SimulationResult result) {
+        jdbc.update("""
+                UPDATE simulation_runs SET status='COMPLETED', completed_at=?, result_json=CAST(? AS JSONB),
+                virtual_time_micros=?, processed_events=? WHERE id=?
+                """, Timestamp.from(Instant.now()), toJson(result), result.simulationDurationMicros(), result.processedEvents(), id);
+    }
+
+    public void markFailed(UUID id, String message) {
+        jdbc.update("""
+                UPDATE simulation_runs SET status='FAILED', completed_at=?, error_message=? WHERE id=?
+                """, Timestamp.from(Instant.now()), safeMessage(message), id);
+    }
+
+    public Optional<SimulationRunSnapshot> find(UUID id) {
+        List<SimulationRunSnapshot> results = jdbc.query("""
+                SELECT id, status, scenario_name, seed, submitted_at, completed_at,
+                       virtual_time_micros, processed_events, scenario_json::text, result_json::text, error_message
+                FROM simulation_runs WHERE id=?
+                """, (rs, row) -> new SimulationRunSnapshot(
+                rs.getObject("id", UUID.class),
+                rs.getString("status"),
+                rs.getString("scenario_name"),
+                rs.getLong("seed"),
+                rs.getTimestamp("submitted_at").toInstant(),
+                rs.getTimestamp("completed_at") == null ? null : rs.getTimestamp("completed_at").toInstant(),
+                rs.getLong("virtual_time_micros"),
+                rs.getLong("processed_events"),
+                readJson(rs.getString("scenario_json")),
+                readJson(rs.getString("result_json")),
+                rs.getString("error_message")), id);
+        return results.stream().findFirst();
+    }
+
+    private String toJson(Object value) {
+        try { return mapper.writeValueAsString(value); }
+        catch (JsonProcessingException exception) { throw new IllegalStateException("could not serialize simulation data", exception); }
+    }
+
+    private JsonNode readJson(String value) {
+        if (value == null) return null;
+        try { return mapper.readTree(value); }
+        catch (JsonProcessingException exception) { throw new IllegalStateException("stored simulation JSON is invalid", exception); }
+    }
+
+    private String safeMessage(String value) {
+        if (value == null || value.isBlank()) return "Simulation failed without an error message";
+        return value.length() > 2000 ? value.substring(0, 2000) : value;
+    }
+}

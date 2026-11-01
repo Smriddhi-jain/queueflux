@@ -1,25 +1,40 @@
 # Architecture
 
-QueueFlux is a modular monolith with a pure Java simulation engine.
+QueueFlux is a modular monolith with a pure Java discrete-event simulation engine and a React web client.
 
-```text
-React UI -> Spring Boot API -> SimulationEngine -> EventScheduler / VirtualClock
-                                  |                  -> workload streams
-                                  |                  -> worker/queue runtime
-                                  |                  -> metrics and bounded trace
-                                  -> future persistence and experiment coordinator
-```
+§§§text
+React UI -- REST/SSE --> Spring Boot API --> SimulationEngine
+                              |                  |
+                              |                  +-- EventScheduler
+                              |                  +-- VirtualClock
+                              |                  +-- QueueRuntime(s)
+                              |                  +-- deterministic random streams
+                              |                  +-- metrics / trace
+                              |
+                              +-- bounded run executor
+                              +-- JDBC repository --> PostgreSQL JSONB
+§§§
 
-## Dependency boundaries
+## Dependency rules
 
-- `queue-model` owns scenario vocabulary and validation.
-- `simulation-engine` depends only on `queue-model` and the JDK.
-- `simulation-profiles` maps generic or vendor-inspired configuration into engine concepts.
-- `server` composes the modules and owns HTTP concerns.
-- `web` communicates with the server over versioned JSON APIs.
+- queue-model owns scenario vocabulary and validation.
+- simulation-engine depends only on queue-model and the JDK.
+- simulation-profiles owns behaviour-profile boundaries and vendor-inspired mapping.
+- server composes modules and owns HTTP, persistence, async orchestration and SSE.
+- web consumes the versioned JSON API.
 
-Do not move provider/queue-specific policy branches into the generic simulation core. Add a profile or policy strategy instead.
+## Execution model
 
-## Execution isolation
+Every queue has exactly one worker pool in this release. Workloads may share a queue. Events from all queues are ordered by virtual time and phase in one scheduler, while queue state and worker capacity remain independent. The same run can therefore compare independent queue topologies under one deterministic scenario clock.
 
-The current endpoint executes synchronously. Before accepting public multi-user workloads, add bounded asynchronous execution, per-run cancellation, queue quotas, artifact retention, and persistence. Never expose arbitrary code execution as a scenario feature.
+## Persistence boundary
+
+PostgreSQL stores run lifecycle records, submitted scenario JSON and final result JSON. The engine is stateless between calls and does not store each queue event in the database. Trace output is bounded and is included in the result snapshot.
+
+## Safe extension points
+
+- Add queue policies as immutable fields in queue-model.
+- Implement their state transitions in simulation-engine.
+- Add profile constraints in simulation-profiles.
+- Expose configuration/results via server and web.
+- Add deterministic tests and document event phase/metric changes in the same change.
