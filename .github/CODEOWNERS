@@ -1,2 +1,4 @@
-# QueueFlux ownership; configure required code-owner review when a second maintainer is available.
+# QueueFlux repository-wide code ownership.
+# CODEOWNERS requests review from this account for all files.
+# Enforce this with a ruleset requiring code-owner approval on main.
 * @nishanthn99
