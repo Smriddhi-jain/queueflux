@@ -137,7 +137,7 @@ mvn -B test
 cd web && npm install && npm run build
 ```
 
-GitHub Actions runs backend tests and the frontend production build on pushes and pull requests to main.
+GitHub Actions runs the existing CI on main and the dedicated Continuous Testing workflow on every branch push, pull requests to main, and a nightly schedule. Continuous Testing runs Maven verification, frontend lint/build, and a high-severity npm advisory check. See [main branch protection](docs/BRANCH_PROTECTION.md) for the required GitHub settings.
 
 ## Current boundaries
 
