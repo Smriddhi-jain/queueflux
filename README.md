@@ -137,7 +137,15 @@ mvn -B test
 cd web && npm install && npm run build
 ```
 
-GitHub Actions runs the existing CI on main and the dedicated Continuous Testing workflow on every branch push, pull requests to main, and a nightly schedule. Continuous Testing runs Maven verification, frontend lint/build, and a high-severity npm advisory check. See [main branch protection](docs/BRANCH_PROTECTION.md) for the required GitHub settings.
+GitHub Actions runs Maven verification with JaCoCo coverage, frontend tests with Vitest/V8 coverage, linting and production builds. Separate workflows run CodeQL (Java and TypeScript), Semgrep Community SAST, optional SonarQube Cloud analysis, and versioned Maven artifact publishing. See [quality and security](docs/QUALITY_AND_SECURITY.md) and [artifact publishing and free hosting](docs/ARTIFACTS_AND_FREE_HOSTING.md).
+
+## Publish Maven artifacts
+
+Create a GitHub Release (for example `v0.1.0`) to publish the Maven modules to GitHub Packages, or run the **Publish Maven artifacts** workflow manually. See [artifact publishing and free hosting](docs/ARTIFACTS_AND_FREE_HOSTING.md) for GitHub Packages, optional JFrog Artifactory, and consumer setup.
+
+## Host QueueFlux for free
+
+The repository includes a Render Blueprint for the Spring Boot API. Deploy the Vite frontend to Cloudflare Pages and use Neon for a free PostgreSQL project. Follow [the deployment guide](docs/ARTIFACTS_AND_FREE_HOSTING.md); provider accounts and secrets must be configured by the repository owner.
 
 ## Current boundaries
 

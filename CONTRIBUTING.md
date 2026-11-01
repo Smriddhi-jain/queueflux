@@ -10,8 +10,8 @@ Thanks for considering a contribution. QueueFlux is early-stage; focused changes
 - npm 10
 
 ```bash
-mvn -pl backend/server -am test
-cd web && npm install && npm run build
+mvn -B -ntp clean verify
+cd web && npm install && npm run test:coverage && npm run lint && npm run build
 ```
 
 ## Architecture rules
@@ -32,16 +32,17 @@ git pull --ff-only
 git switch -c feature/short-description
 ```
 
-Push that branch and open a pull request targeting `main`. Use the repository PR template and wait for the required Continuous Testing checks before merging. See [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md) for the repository ruleset settings.
+Push that branch and open a pull request targeting `main`. Use the repository PR template and wait for the required CI and security checks before merging. See [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md) for branch rules, and [docs/QUALITY_AND_SECURITY.md](docs/QUALITY_AND_SECURITY.md) for coverage and static analysis.
 
 Before opening the PR:
 
 1. Explain the problem and expected behaviour.
 2. Add focused tests for correctness and determinism.
-3. Run `mvn -B -ntp verify`.
-4. Run `cd web && npm install && npm run lint && npm run build`.
-5. Update docs and example scenarios where relevant.
-6. Do not include real credentials, customer payloads, or generated build artifacts.
+3. Run `mvn -B -ntp clean verify`.
+4. Run `cd web && npm install && npm run test:coverage && npm run lint && npm run build`.
+5. Review CodeQL/Semgrep and SonarQube results when available.
+6. Update docs and example scenarios where relevant.
+7. Do not include real credentials, customer payloads, or generated build artifacts.
 
 ## Good first contributions
 

@@ -48,3 +48,16 @@ GitHub does not count the pull-request author's own approval as an independent r
 The continuous-testing workflow uses read-only repository permissions, disables persisted checkout credentials, and pins actions to full commit SHAs. Dependabot checks the GitHub Actions, npm, and Maven manifests weekly and proposes dependency update PRs.
 
 For details about workflow dependency pinning, see GitHub's [secure use reference](https://docs.github.com/en/actions/reference/security/secure-use).
+
+
+## Additional quality and security checks
+
+After the quality/security PR is merged and each workflow has run at least once, add the following exact job checks to the `main` ruleset:
+
+- Backend tests and JaCoCo coverage
+- Frontend tests, lint, build and coverage
+- CodeQL analysis for Java/Kotlin
+- CodeQL analysis for JavaScript/TypeScript
+- Semgrep Community SAST
+
+Add SonarQube Cloud analysis only after the project and repository secret/variables are configured and the workflow is enabled. See [QUALITY_AND_SECURITY.md](QUALITY_AND_SECURITY.md).

@@ -1,0 +1,99 @@
+name: Publish Maven artifacts
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Maven release version (without the leading v)
+        required: true
+        type: string
+      registry:
+        description: Where to publish the Maven artifacts
+        required: true
+        default: github
+        type: choice
+        options:
+          - github
+          - jfrog
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-maven-${{ github.event.release.tag_name || inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish Maven modules
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MAVEN_REGISTRY: ${{ github.event_name == 'workflow_dispatch' && inputs.registry || vars.MAVEN_REGISTRY || 'github' }}
+      RELEASE_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
+      JFROG_MAVEN_REPO_URL: ${{ vars.JFROG_MAVEN_REPO_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Validate release inputs
+        shell: bash
+        run: |
+          VERSION="${RELEASE_VERSION#v}"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "Expected a semantic version such as 0.1.0"; exit 1; }
+          [[ "$MAVEN_REGISTRY" == "github" || "$MAVEN_REGISTRY" == "jfrog" ]] || { echo "MAVEN_REGISTRY must be github or jfrog"; exit 1; }
+          if [[ "$MAVEN_REGISTRY" == "jfrog" ]]; then
+            test -n "$JFROG_MAVEN_REPO_URL" || { echo "Set JFROG_MAVEN_REPO_URL repository variable"; exit 1; }
+            test -n "$JFROG_USERNAME" || { echo "Set JFROG_USERNAME secret"; exit 1; }
+            test -n "$JFROG_PASSWORD" || { echo "Set JFROG_PASSWORD secret"; exit 1; }
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Configure GitHub Packages authentication
+        if: env.MAVEN_REGISTRY == 'github'
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+          cache: maven
+      - name: Configure JFrog Artifactory authentication
+        if: env.MAVEN_REGISTRY == 'jfrog'
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          server-id: jfrog
+          server-username: JFROG_USERNAME
+          server-password: JFROG_PASSWORD
+          cache: maven
+      - name: Set release version across the Maven reactor
+        run: |
+          mvn -B -ntp org.codehaus.mojo:versions-maven-plugin:2.19.1:set \
+            -DnewVersion="$VERSION" \
+            -DprocessAllModules=true \
+            -DgenerateBackupPoms=false
+      - name: Verify and publish to GitHub Packages
+        if: env.MAVEN_REGISTRY == 'github'
+        run: |
+          mvn -B -ntp clean verify
+          mvn -B -ntp deploy -DskipTests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify and publish to JFrog Artifactory
+        if: env.MAVEN_REGISTRY == 'jfrog'
+        run: |
+          mvn -B -ntp clean verify
+          mvn -B -ntp deploy -DskipTests "-DaltDeploymentRepository=jfrog::${JFROG_MAVEN_REPO_URL}"
+        env:
+          JFROG_USERNAME: ${{ secrets.JFROG_USERNAME }}
+          JFROG_PASSWORD: ${{ secrets.JFROG_PASSWORD }}

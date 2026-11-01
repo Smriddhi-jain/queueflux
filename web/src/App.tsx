@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Activity, ArrowUpRight, Clock3, Gauge, Play, RotateCcw, Server, Zap } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Result, Scenario } from './types';
+import { buildChartData, formatMetric, parseScenarioJson } from './utils/simulation';
 
 const initial: Scenario = {
   schemaVersion: 1, name: 'Email notification workload', durationMicros: 60_000_000, seed: 12345,
@@ -10,7 +11,7 @@ const initial: Scenario = {
   workerPools: [{ id: 'email-workers', queueId: 'email-queue', workerCount: 5, concurrencyPerWorker: 1, serviceTime: { distribution: 'EXPONENTIAL', constantMicros: 250000, meanMicros: 250000 } }],
   workloads: [{ id: 'email-arrivals', queueId: 'email-queue', startMicros: 0, endMicros: 60_000_000, arrivals: { mode: 'POISSON', ratePerSecond: 20 } }]
 };
-const fmt = (value: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
+const fmt = formatMetric;
 
 export default function App() {
   const [scenario, setScenario] = useState(initial);
@@ -24,18 +25,7 @@ export default function App() {
   const [comparing, setComparing] = useState(false);
   useEffect(() => setScenarioJson(JSON.stringify(scenario, null, 2)), [scenario]);
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
-  const chartData = useMemo(() => {
-    if (!result) return [];
-    const buckets = new Map<number, { time: number; completed: number; waiting: number }>();
-    for (const event of result.trace) {
-      const second = Math.floor(event.timeMicros / 1_000_000);
-      const row = buckets.get(second) ?? { time: second, completed: 0, waiting: 0 };
-      if (event.type === 'JOB_COMPLETED') row.completed += 1;
-      if (event.type === 'JOB_ARRIVED') row.waiting += 1;
-      buckets.set(second, row);
-    }
-    return [...buckets.values()].sort((a, b) => a.time - b.time);
-  }, [result]);
+  const chartData = useMemo(() => result ? buildChartData(result.trace) : [], [result]);
 
   function updatePool(patch: Partial<Scenario['workerPools'][number]>) {
     setScenario(current => ({ ...current, workerPools: [{ ...current.workerPools[0], ...patch }] }));
@@ -93,10 +83,7 @@ export default function App() {
 
   function applyScenarioJson() {
     try {
-      const parsed = JSON.parse(scenarioJson) as Scenario;
-      if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.queues) || !Array.isArray(parsed.workerPools) || !Array.isArray(parsed.workloads)) {
-        throw new Error('Expected scenario schemaVersion 1 with queues, workerPools and workloads arrays.');
-      }
+      const parsed = parseScenarioJson(scenarioJson);
       setScenario(parsed);
       setJsonError('');
       setResult(null);
