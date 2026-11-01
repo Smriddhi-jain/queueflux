@@ -1,0 +1,21 @@
+name: Bug report
+description: Report incorrect simulation behavior or a product defect.
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Minimal scenario (remove private data)
+      render: json

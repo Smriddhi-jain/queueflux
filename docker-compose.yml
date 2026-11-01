@@ -1,0 +1,15 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/server/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+  web:
+    build: ./web
+    ports:
+      - "3000:80"
+    depends_on:
+      - api

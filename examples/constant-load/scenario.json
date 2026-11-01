@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "name": "email-notification-constant-load",
+  "durationMicros": 60000000,
+  "seed": 12345,
+  "queues": [
+    {"id": "email-queue", "maxDepth": 5000, "discipline": "FIFO"}
+  ],
+  "workerPools": [
+    {"id": "email-workers", "queueId": "email-queue", "workerCount": 5, "concurrencyPerWorker": 1,
+     "serviceTime": {"distribution": "EXPONENTIAL", "constantMicros": 250000, "meanMicros": 250000}}
+  ],
+  "workloads": [
+    {"id": "email-arrivals", "queueId": "email-queue", "startMicros": 0, "endMicros": 60000000,
+     "arrivals": {"mode": "POISSON", "ratePerSecond": 20}}
+  ]
+}

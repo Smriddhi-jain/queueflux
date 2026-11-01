@@ -1,0 +1,18 @@
+# Java / Maven
+**/target/
+.build/
+*.class
+.idea/
+*.iml
+.vscode/
+# Node
+node_modules/
+web/dist/
+web/.vite/
+# Runtime
+.env
+.env.*
+!.env.example
+artifacts/
+*.log
+.DS_Store
