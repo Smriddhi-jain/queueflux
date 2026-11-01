@@ -2,9 +2,9 @@ name: SonarQube Cloud
 
 on:
   push:
-    branches: [main, ci/continuous-testing-main-protection]
-  pull_request:
     branches: [main]
+  pull_request:
+    branches: [main, ci/continuous-testing-main-protection]
     types: [opened, synchronize, reopened]
   schedule:
     - cron: "41 3 * * 1"

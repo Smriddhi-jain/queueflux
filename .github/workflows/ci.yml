@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, ci/continuous-testing-main-protection]
-  pull_request:
     branches: [main]
+  pull_request:
+    branches: [main, ci/continuous-testing-main-protection]
 
 permissions:
   contents: read
