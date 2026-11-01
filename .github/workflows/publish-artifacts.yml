@@ -35,6 +35,9 @@ jobs:
       MAVEN_REGISTRY: ${{ github.event_name == 'workflow_dispatch' && inputs.registry || vars.MAVEN_REGISTRY || 'github' }}
       RELEASE_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
       JFROG_MAVEN_REPO_URL: ${{ vars.JFROG_MAVEN_REPO_URL }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      JFROG_USERNAME: ${{ secrets.JFROG_USERNAME }}
+      JFROG_PASSWORD: ${{ secrets.JFROG_PASSWORD }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -87,13 +90,8 @@ jobs:
         run: |
           mvn -B -ntp clean verify
           mvn -B -ntp deploy -DskipTests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify and publish to JFrog Artifactory
         if: env.MAVEN_REGISTRY == 'jfrog'
         run: |
           mvn -B -ntp clean verify
           mvn -B -ntp deploy -DskipTests "-DaltDeploymentRepository=jfrog::${JFROG_MAVEN_REPO_URL}"
-        env:
-          JFROG_USERNAME: ${{ secrets.JFROG_USERNAME }}
-          JFROG_PASSWORD: ${{ secrets.JFROG_PASSWORD }}
