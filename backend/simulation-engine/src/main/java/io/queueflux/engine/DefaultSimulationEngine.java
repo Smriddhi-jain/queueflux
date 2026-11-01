@@ -119,6 +119,7 @@ public final class DefaultSimulationEngine implements SimulationEngine {
         long[] pendingRetries = {0};
         List<TraceEvent> trace = new ArrayList<>();
         long processedEvents = 0;
+        long scenarioPeakBacklog = 0;
 
         for (int i = 0; i < scenario.workloads().size(); i++) {
             WorkloadDefinition workload = scenario.workloads().get(i);
@@ -246,6 +247,8 @@ public final class DefaultSimulationEngine implements SimulationEngine {
                     dispatch(queue, scheduler, clock.nowMicros(), jobs, trace, maxTrace, scenario.seed());
                 }
             }
+            long totalWaitingNow = queues.values().stream().mapToLong(runtime -> runtime.waiting.size()).sum();
+            scenarioPeakBacklog = Math.max(scenarioPeakBacklog, totalWaitingNow);
             if (processedEvents % 10_000 == 0) {
                 observer.onProgress(new SimulationProgress(clock.nowMicros(), processedEvents, processedEvents + scheduler.size()));
             }
@@ -254,7 +257,7 @@ public final class DefaultSimulationEngine implements SimulationEngine {
         long totalBusy = 0;
         long totalCapacity = 0;
         long totalCompleted = 0, totalRejected = 0, totalRetried = 0, totalFailed = 0, totalDead = 0;
-        long waitingAtEnd = 0, activeAtEnd = 0, peakBacklog = 0;
+        long waitingAtEnd = 0, activeAtEnd = 0;
         List<Long> waits = new ArrayList<>(), latencies = new ArrayList<>();
         List<QueueMetrics> queueMetrics = new ArrayList<>();
         for (QueueRuntime queue : queues.values()) {
@@ -269,7 +272,6 @@ public final class DefaultSimulationEngine implements SimulationEngine {
             totalDead += queue.deadLettered;
             waitingAtEnd += queue.waiting.size();
             activeAtEnd += queue.active;
-            peakBacklog += queue.peakBacklog;
             waits.addAll(queue.waits);
             latencies.addAll(queue.latencies);
             long queueDelayed = jobs.values().stream().filter(job ->
@@ -289,7 +291,7 @@ public final class DefaultSimulationEngine implements SimulationEngine {
         SimulationResult result = new SimulationResult(
                 scenario.name(), scenario.seed(), scenario.durationMicros(), processedEvents,
                 generated[0], accepted[0], totalCompleted, totalRejected, totalRetried, totalFailed, totalDead,
-                waitingAtEnd, pendingRetries[0], activeAtEnd, peakBacklog,
+                waitingAtEnd, pendingRetries[0], activeAtEnd, scenarioPeakBacklog,
                 durationSeconds == 0 ? 0 : totalCompleted / durationSeconds,
                 mean(waits), mean(latencies), percentile(latencies, 0.95), percentile(latencies, 0.99),
                 utilization, queueMetrics, trace);

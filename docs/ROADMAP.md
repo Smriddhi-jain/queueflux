@@ -37,7 +37,7 @@ This document distinguishes features that exist in the current branch from ideas
 
 ### API and run orchestration
 - [ ] Authentication, authorization, tenant isolation and per-user quotas.
-- [ ] Automatic recovery of interrupted RUNNING jobs using leases and heartbeats.
+- [x] Single-process restart recovery by deterministic replay from virtual time zero.\n- [ ] Distributed recovery with leases, heartbeats and duplicate-run protection.
 - [ ] Run cancellation, timeout, queue-depth controls and idempotency keys.
 - [ ] Durable progress history and paginated trace/artifact storage.
 - [ ] Database migrations with Flyway/Liquibase and retention/archival jobs.

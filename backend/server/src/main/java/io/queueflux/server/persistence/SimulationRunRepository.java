@@ -34,7 +34,7 @@ public class SimulationRunRepository {
     }
 
     public void markRunning(UUID id) {
-        jdbc.update("UPDATE simulation_runs SET status='RUNNING' WHERE id=? AND status='QUEUED'", id);
+        jdbc.update("UPDATE simulation_runs SET status='RUNNING', error_message=NULL WHERE id=? AND status='QUEUED'", id);
     }
 
     public void updateProgress(UUID id, SimulationProgress progress) {
@@ -46,7 +46,7 @@ public class SimulationRunRepository {
 
     public void markCompleted(UUID id, SimulationResult result) {
         jdbc.update("""
-                UPDATE simulation_runs SET status='COMPLETED', completed_at=?, result_json=CAST(? AS JSONB),
+                UPDATE simulation_runs SET status='COMPLETED', completed_at=?, result_json=CAST(? AS JSONB), error_message=NULL,
                 virtual_time_micros=?, processed_events=? WHERE id=?
                 """, Timestamp.from(Instant.now()), toJson(result), result.simulationDurationMicros(), result.processedEvents(), id);
     }
@@ -75,6 +75,29 @@ public class SimulationRunRepository {
                 readJson(rs.getString("result_json")),
                 rs.getString("error_message")), id);
         return results.stream().findFirst();
+    }
+
+    public List<PendingSimulationRun> findInterrupted() {
+        return jdbc.query("""
+                SELECT id, scenario_json::text FROM simulation_runs
+                WHERE status IN ('QUEUED', 'RUNNING') ORDER BY submitted_at ASC
+                """, (rs, row) -> {
+            try {
+                return new PendingSimulationRun(rs.getObject("id", UUID.class),
+                        mapper.readValue(rs.getString("scenario_json"), ScenarioDefinition.class));
+            } catch (JsonProcessingException exception) {
+                throw new IllegalStateException("could not read a persisted scenario for restart recovery", exception);
+            }
+        });
+    }
+
+    public void requeueAfterRestart(UUID id) {
+        jdbc.update("""
+                UPDATE simulation_runs SET status='QUEUED', completed_at=NULL, result_json=NULL,
+                error_message=NULL,
+                virtual_time_micros=0, processed_events=0
+                WHERE id=? AND status IN ('QUEUED', 'RUNNING')
+                """, id);
     }
 
     private String toJson(Object value) {

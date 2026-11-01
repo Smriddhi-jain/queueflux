@@ -6,6 +6,9 @@ import io.queueflux.model.scenario.ScenarioDefinition;
 import io.queueflux.model.scenario.ScenarioValidator;
 import io.queueflux.server.api.SimulationRunSnapshot;
 import io.queueflux.server.persistence.SimulationRunRepository;
+import io.queueflux.server.persistence.PendingSimulationRun;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
@@ -19,7 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
-public class SimulationRunService {
+public class SimulationRunService implements ApplicationRunner {
     private final SimulationEngine engine;
     private final SimulationRunRepository repository;
     private final TaskExecutor executor;
@@ -32,11 +35,29 @@ public class SimulationRunService {
         this.executor = executor;
     }
 
+    /** Replays queued/running rows after a single-process restart from virtual time zero. */
+    @Override
+    public void run(ApplicationArguments arguments) {
+        for (PendingSimulationRun pending : repository.findInterrupted()) {
+            repository.requeueAfterRestart(pending.id());
+            try {
+                executor.execute(() -> execute(pending.id(), pending.scenario()));
+            } catch (RuntimeException rejected) {
+                repository.markFailed(pending.id(), "Restart recovery could not enqueue this run: " + rejected.getMessage());
+            }
+        }
+    }
+
     public UUID submit(ScenarioDefinition scenario) {
         ScenarioValidator.validate(scenario);
         UUID id = UUID.randomUUID();
         repository.create(id, scenario);
-        executor.execute(() -> execute(id, scenario));
+        try {
+            executor.execute(() -> execute(id, scenario));
+        } catch (RuntimeException rejected) {
+            repository.markFailed(id, "Simulation executor is full or shutting down: " + rejected.getMessage());
+            throw new IllegalStateException("simulation executor cannot accept another run", rejected);
+        }
         return id;
     }
 

@@ -22,3 +22,11 @@ export type RunSnapshot = {
   submittedAt: string; completedAt: string|null; virtualTimeMicros: number; processedEvents: number;
   scenario: Scenario; result: Result|null; errorMessage: string|null;
 };
+
+export type ComparisonResult = {
+  replications: number; seedStride: number; meanThroughputPerSecond: number;
+  standardDeviationThroughputPerSecond: number; meanP95LatencyMicros: number;
+  standardDeviationP95LatencyMicros: number; meanP99LatencyMicros: number;
+  meanPeakBacklog: number; meanRejectedJobs: number; meanWorkerUtilization: number;
+  runs: { seed: number; throughputPerSecond: number; p95LatencyMicros: number; p99LatencyMicros: number; peakBacklog: number; rejectedJobs: number; workerUtilization: number }[];
+};

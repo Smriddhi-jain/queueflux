@@ -1,6 +1,6 @@
 # QueueFlux — Complete Project Guide
 
-**Version:** 0.2.0 development baseline  
+**Version:** 0.1.0-SNAPSHOT development baseline  
 **License:** Apache-2.0  
 **Primary stack:** Java 21, Spring Boot, React, TypeScript, PostgreSQL, Docker Compose
 
@@ -243,7 +243,7 @@ The simulation_runs PostgreSQL table stores:
 - last progress time and processed-event count;
 - an error message for failed runs.
 
-The API's async executor currently uses two core threads, a maximum of four threads, and a queue of fifty tasks. This is a single-process development arrangement, not a distributed job scheduler. If the process stops during a RUNNING run, the record remains but is not automatically resumed in this baseline.
+The API's async executor currently uses two core threads, a maximum of four threads, and a queue of fifty tasks. This is a single-process development arrangement, not a distributed job scheduler. On a single-process API restart, QUEUED and RUNNING rows are replayed deterministically from virtual time zero. This is a replay, not a checkpointed continuation; it assumes only one API instance is running.
 
 The Compose named volume preserves run data across docker compose down. Deleting the volume destroys the database. See OPERATIONS.md.
 

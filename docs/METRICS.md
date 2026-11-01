@@ -16,7 +16,7 @@ All time metrics are microseconds. Convert to milliseconds by dividing by 1,000 
 | Waiting at end | Jobs in queue waiting for worker capacity at the horizon |
 | Delayed retry at end | Jobs whose retry timer has not elapsed at the horizon |
 | Active at end | Jobs currently executing at the horizon |
-| Peak backlog | Largest waiting-queue size observed after dispatch |
+| Peak backlog | Maximum total waiting jobs across all queues at one event boundary; each queue also reports its own peak |
 | Throughput | Completed jobs / scenario duration in seconds |
 | Average queue wait | Mean accumulated waiting time across attempts for completed jobs |
 | Average end-to-end latency | Mean final completion time minus first-arrival time for completed jobs |

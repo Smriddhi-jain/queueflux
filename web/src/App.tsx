@@ -20,6 +20,8 @@ export default function App() {
   const [scenarioJson, setScenarioJson] = useState(() => JSON.stringify(initial, null, 2));
   const [jsonError, setJsonError] = useState('');
   const [progress, setProgress] = useState('');
+  const [comparison, setComparison] = useState<import('./types').ComparisonResult | null>(null);
+  const [comparing, setComparing] = useState(false);
   useEffect(() => setScenarioJson(JSON.stringify(scenario, null, 2)), [scenario]);
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
   const chartData = useMemo(() => {
@@ -70,6 +72,25 @@ export default function App() {
     } finally { setLoading(false); }
   }
 
+  async function compareSeeds() {
+    setComparing(true);
+    setComparison(null);
+    setError('');
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/simulations/compare`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenario, replications: 5, seedStride: 10000 })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message ?? `Comparison failed (${response.status})`);
+      }
+      setComparison(await response.json() as import('./types').ComparisonResult);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not complete the replicated comparison.');
+    } finally { setComparing(false); }
+  }
+
   function applyScenarioJson() {
     try {
       const parsed = JSON.parse(scenarioJson) as Scenario;
@@ -108,7 +129,7 @@ export default function App() {
           <Metric icon={<Activity size={16}/>} label="WORKER UTILIZATION" value={`${fmt(result.workerUtilization*100)}%`} unit="of available capacity"/>
         </div>
         <div className="panel chart-panel"><div className="chart-head"><div><h3>Event activity</h3><p>Captured events across virtual time</p></div><span className="chart-legend"><i/> completions</span></div><div className="chart-wrap">{chartData.length > 0 ? <ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><defs><linearGradient id="completeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#64e5bf" stopOpacity={0.28}/><stop offset="100%" stopColor="#64e5bf" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#202b42" strokeDasharray="3 5" vertical={false}/><XAxis dataKey="time" stroke="#66738c" tickLine={false} axisLine={false} tickFormatter={v=>`${v}s`}/><YAxis stroke="#66738c" tickLine={false} axisLine={false} width={34}/><Tooltip contentStyle={{background:'#111a2b',border:'1px solid #293753',borderRadius:10,color:'#eaf0ff'}}/><Area type="monotone" dataKey="completed" name="Completions" stroke="#64e5bf" fill="url(#completeFill)" strokeWidth={2.2}/></AreaChart></ResponsiveContainer> : <div className="no-trace">Trace capture disabled or no events recorded.</div>}</div></div>
-        <div className="panel summary-panel"><div className="chart-head"><div><h3>Execution summary</h3><p>Seed {result.seed} · {fmt(result.processedEvents)} events processed</p></div></div><div className="summary-grid"><Summary label="Generated" value={result.generatedJobs}/><Summary label="Completed" value={result.completedJobs}/><Summary label="Rejected" value={result.rejectedJobs}/><Summary label="Waiting at end" value={result.waitingAtEnd}/><Summary label="Active at end" value={result.activeAtEnd}/><Summary label="p99 latency" value={`${fmt(result.p99EndToEndLatencyMicros/1000)} ms`}/><Summary label="Retries scheduled" value={result.retriedJobs}/><Summary label="Dead-lettered" value={result.deadLetteredJobs}/></div></div>
+        <div className="panel summary-panel"><div className="chart-head"><div><h3>Execution summary</h3><p>Seed {result.seed} · {fmt(result.processedEvents)} events processed</p></div></div><div className="summary-grid"><Summary label="Generated" value={result.generatedJobs}/><Summary label="Completed" value={result.completedJobs}/><Summary label="Rejected" value={result.rejectedJobs}/><Summary label="Waiting at end" value={result.waitingAtEnd}/><Summary label="Active at end" value={result.activeAtEnd}/><Summary label="p99 latency" value={`${fmt(result.p99EndToEndLatencyMicros/1000)} ms`}/><Summary label="Retries scheduled" value={result.retriedJobs}/><Summary label="Dead-lettered" value={result.deadLetteredJobs}/></div><button className="apply-json compare-button" onClick={compareSeeds} disabled={comparing}>{comparing ? "RUNNING 5 SEEDS…" : "COMPARE 5 SEEDED RUNS"}</button>{comparison && <div className="comparison-result"><span>5-REPLICATION MEAN THROUGHPUT</span><strong>{fmt(comparison.meanThroughputPerSecond)} jobs/sec</strong><small>σ throughput: {fmt(comparison.standardDeviationThroughputPerSecond)} · Mean p95: {fmt(comparison.meanP95LatencyMicros/1000)} ms · σ p95: {fmt(comparison.standardDeviationP95LatencyMicros/1000)} ms</small></div>}</div><div className="panel summary-panel queue-panel"><div className="chart-head"><div><h3>Queue breakdown</h3><p>Independent queue and worker-pool outcomes</p></div></div><div className="queue-breakdown">{result.queues.map(queue=><div className="queue-row" key={queue.queueId}><strong>{queue.queueId}</strong><span>{fmt(queue.completedJobs)} complete</span><span>{fmt(queue.rejectedJobs)} rejected</span><span>{fmt(queue.workerUtilization*100)}% used</span></div>)}</div></div>
       </>}
     </section></div>
     <footer><span>QUEUEFLUX <i>·</i> OPEN SOURCE WORKLOAD EXPERIMENTS</span><span>BUILT FOR REPEATABILITY <i>·</i> APACHE 2.0</span></footer>

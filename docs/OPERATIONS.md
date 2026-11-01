@@ -68,7 +68,7 @@ Keep backups outside the repository and protect them like application data. A sc
 
 The API uses a single-process bounded executor (2 core threads, 4 maximum threads, queue capacity 50). Run records are persisted before submission. Progress is updated during the simulation and final results are stored in JSONB.
 
-This version does not automatically recover a run that was marked RUNNING when the API process stopped. Such records remain in the database; inspect them before manually re-running. A future coordinator will add explicit lease/heartbeat and recovery semantics.
+On a single-process API restart, QUEUED and RUNNING rows are replayed deterministically from virtual time zero. This restarts the whole scenario rather than resuming from an event checkpoint. Do not run multiple API replicas: distributed leases and duplicate-run protection are not implemented.
 
 ## Operational security checklist before network deployment
 
