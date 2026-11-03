@@ -86,6 +86,33 @@ class ScenarioValidatorTest {
     }
 
     @Test
+    void rejectsDuplicateWorkloadIds() {
+        var scenario = validScenario(
+                List.of(queue("emails")),
+                List.of(pool("workers", "emails", List.of())),
+                List.of(workload("load", "emails", 500_000), workload("load", "emails", 1_000_000)));
+
+        assertThatThrownBy(() -> ScenarioValidator.validate(scenario))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate workload id");
+    }
+
+    @Test
+    void rejectsDuplicateOutageIdsWithinAWorkerPool() {
+        var outages = List.of(
+                new WorkerOutage("maintenance", 100, 200, 1),
+                new WorkerOutage("maintenance", 300, 400, 1));
+        var scenario = validScenario(
+                List.of(queue("emails")),
+                List.of(pool("workers", "emails", outages)),
+                List.of(workload("load", "emails", 1_000_000)));
+
+        assertThatThrownBy(() -> ScenarioValidator.validate(scenario))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate worker outage id");
+    }
+
+    @Test
     void rejectsOutagesThatExceedSimulationDuration() {
         var scenario = validScenario(
                 List.of(queue("emails")),
@@ -124,12 +151,12 @@ class ScenarioValidatorTest {
     @Test
     void rejectsQueuesWithoutAWorkload() {
         var scenario = validScenario(
-                List.of(queue("emails")),
-                List.of(pool("workers", "emails", List.of())),
-                List.of(workload("other-load", "other-queue", 1_000_000)));
+                List.of(queue("emails"), queue("reports")),
+                List.of(pool("email-workers", "emails", List.of()), pool("report-workers", "reports", List.of())),
+                List.of(workload("email-load", "emails", 1_000_000)));
 
         assertThatThrownBy(() -> ScenarioValidator.validate(scenario))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unknown queue for workload");
+                .hasMessageContaining("queue has no workload: reports");
     }
 }
