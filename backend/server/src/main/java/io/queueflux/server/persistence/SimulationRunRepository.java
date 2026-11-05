@@ -1,8 +1,8 @@
 package io.queueflux.server.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.queueflux.engine.api.SimulationProgress;
 import io.queueflux.engine.api.SimulationResult;
 import io.queueflux.model.scenario.ScenarioDefinition;
@@ -85,7 +85,7 @@ public class SimulationRunRepository {
             try {
                 return new PendingSimulationRun(rs.getObject("id", UUID.class),
                         mapper.readValue(rs.getString("scenario_json"), ScenarioDefinition.class));
-            } catch (JsonProcessingException exception) {
+            } catch (JacksonException exception) {
                 throw new IllegalStateException("could not read a persisted scenario for restart recovery", exception);
             }
         });
@@ -102,13 +102,13 @@ public class SimulationRunRepository {
 
     private String toJson(Object value) {
         try { return mapper.writeValueAsString(value); }
-        catch (JsonProcessingException exception) { throw new IllegalStateException("could not serialize simulation data", exception); }
+        catch (JacksonException exception) { throw new IllegalStateException("could not serialize simulation data", exception); }
     }
 
     private JsonNode readJson(String value) {
         if (value == null) return null;
         try { return mapper.readTree(value); }
-        catch (JsonProcessingException exception) { throw new IllegalStateException("stored simulation JSON is invalid", exception); }
+        catch (JacksonException exception) { throw new IllegalStateException("stored simulation JSON is invalid", exception); }
     }
 
     private String safeMessage(String value) {
