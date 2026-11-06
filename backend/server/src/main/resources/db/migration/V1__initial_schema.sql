@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS simulation_runs (
+CREATE TABLE simulation_runs (
     id UUID PRIMARY KEY,
     status VARCHAR(20) NOT NULL CHECK (status IN ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED')),
     scenario_name VARCHAR(200) NOT NULL,
@@ -12,5 +12,5 @@ CREATE TABLE IF NOT EXISTS simulation_runs (
     processed_events BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_simulation_runs_submitted_at ON simulation_runs (submitted_at DESC);
-CREATE INDEX IF NOT EXISTS idx_simulation_runs_status ON simulation_runs (status);
+CREATE INDEX idx_simulation_runs_submitted_at ON simulation_runs (submitted_at DESC);
+CREATE INDEX idx_simulation_runs_status ON simulation_runs (status);
