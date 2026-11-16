@@ -1,0 +1,21 @@
+{
+  "name": "@queueflux/cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for validating and running QueueFlux simulation scenarios",
+  "type": "module",
+  "bin": {
+    "qf": "./bin/qf.js"
+  },
+  "scripts": {
+    "test": "node --test src/test/*.test.js",
+    "test:coverage": "node --experimental-test-coverage --test src/test/*.test.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "commander": "^14.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
