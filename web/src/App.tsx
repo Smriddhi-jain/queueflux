@@ -655,7 +655,7 @@ export default function App() {
 
               {comparison && (
                 <div className="comparison-result">
-                  <span>5-REPLICATION STATISTICAL SUMMARY — 95% CONFIDENCE INTERVALS</span>
+                  <span>5-REPLICATION STATISTICAL SUMMARY</span>
                   <div className="cmp-table-wrap">
                     <table className="cmp-table">
                       <thead>
@@ -678,7 +678,7 @@ export default function App() {
                       </tbody>
                       <tfoot>
                         <tr className="cmp-mean-row">
-                          <td>MEAN ±CI</td>
+                          <td>MEAN</td>
                           <td>
                             {comparison.meanThroughputPerSecond.toFixed(2)}
                             <span className="ci-pm"> ±{(T_CRIT_5 * comparison.standardDeviationThroughputPerSecond / Math.sqrt(5)).toFixed(2)}</span>
